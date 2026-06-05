@@ -1,4 +1,20 @@
 import subprocess
+import urllib.request
+
+from bs4 import BeautifulSoup
+
+def http_fetch(url: str, max_chars: int = 5000) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "my-agent/0.1"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        ct = r.headers.get("Content-Type", "")
+        body = r.read(200_000).decode("utf-8", errors="replace")
+    if "html" in ct:
+        soup = BeautifulSoup(body, "html.parser")
+        # Drop non-content tags so they don't pollute the extracted text.
+        for tag in soup(["script", "style", "noscript", "template"]):
+            tag.decompose()
+        body = " ".join(soup.get_text(separator=" ").split())
+    return body[:max_chars]
 
 def calculator(expression):
     """
@@ -63,6 +79,30 @@ TOOLS = {
                 "properties": {"code": {"type": "string"}},
                 "required": ["code"],
             },
+        },
+    },
+    "http_fetch": {
+        "fn": http_fetch,
+        "schema": {
+            "name": "http_fetch",
+            "description": "Fetch the text content of a web page given its URL.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"url": {"type": "string"}},
+                "required": ["url"],
+            },
+        },
+    },
+    # Anthropic server-side tool: the API runs the search itself, so there is
+    # no local fn. The schema uses the {type, name} shape (not input_schema),
+    # and the model's results come back as server_tool_use / web_search_tool_result
+    # blocks that the agent loop ignores (it only executes block.type == "tool_use").
+    "web_search": {
+        "fn": None,
+        "schema": {
+            "type": "web_search_20260209",
+            "name": "web_search",
+            # "max_uses": 5,  # optional: cap searches per request to bound cost
         },
     },
 }
