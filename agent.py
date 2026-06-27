@@ -19,6 +19,7 @@ async def run_agent(prompt: str, tools: dict, max_turns: int = 5) -> None:
         request_kwargs = dict(
             model="claude-opus-4-6",
             max_tokens=1024,
+            cache_control={ "type": "ephemeral" },
             output_config={"effort": "low"},
             system=system_prompt,
             messages=messages,
@@ -32,7 +33,7 @@ async def run_agent(prompt: str, tools: dict, max_turns: int = 5) -> None:
 
         async with client.messages.stream(**request_kwargs) as stream:
             print(f"=== Agent reasoning: ===")
-            
+            print("*** ", end=" ")
             # Iterate raw events (not just text_stream) so we can capture the
             # code-execution container id: the GA stream helper drops it from
             # the accumulated final message, but it arrives on message_delta.
@@ -48,7 +49,7 @@ async def run_agent(prompt: str, tools: dict, max_turns: int = 5) -> None:
 
         stop_reason = message.stop_reason
         #print(f"=== Stop reason: {stop_reason} ===")
-        print(f"=== Agent determination: {stop_reason} ===")
+        print(f"\n=== Agent determination: {stop_reason} ===")
         if stop_reason == "pause_turn":
             messages.append({"role": "assistant", "content": message.content})
             continue          # resend so the server-side search can finish
@@ -71,5 +72,7 @@ async def run_agent(prompt: str, tools: dict, max_turns: int = 5) -> None:
                 })
         messages.append({"role": "assistant", "content": message.content})  # add messages to the short memory context
         messages.append({"role": "user", "content": tool_results})
+
+        print(f"\n=== Back to you: ===")
 
 
